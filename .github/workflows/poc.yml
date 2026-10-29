@@ -1,0 +1,43 @@
+name: poc-concurrency
+# Mirrors the shape of wormhole-foundation/native-token-transfers
+# .github/workflows/claude.yml:
+#   * workflow-level concurrency group keyed only on the PR number
+#   * cancel-in-progress: true
+#   * a job-level `if` gate that decides whether the privileged work runs
+# This PoC shows that a run created by a caller whose gate FAILS still
+# cancels the in-progress privileged run in the same group.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "long = privileged run | skip = unprivileged run (gate fails)"
+        required: true
+        default: long
+      pr:
+        description: "PR number used for the concurrency group"
+        required: true
+        default: "954"
+
+concurrency:
+  group: claude-${{ github.event.inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  privileged:
+    if: github.event.inputs.mode == 'long'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: simulated privileged claude review (holds secrets in the real workflow)
+        run: |
+          echo "privileged run $GITHUB_RUN_ID started $(date -u +%T)"
+          sleep 150
+          echo "privileged run finished"
+
+  unprivileged:
+    if: github.event.inputs.mode == 'skip'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: unauthorized actor - auth check writes authorized=false
+        run: echo "run $GITHUB_RUN_ID created by a caller whose gate fails; no privileged work performed"
